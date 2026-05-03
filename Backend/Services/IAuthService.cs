@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 public interface IAuthService
 {
     Task<AuthResponseDto?> RegisterAsync(RegisterDto dto);

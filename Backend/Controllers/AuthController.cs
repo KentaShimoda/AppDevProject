@@ -11,65 +11,36 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register(RegisterDto dto)
     {
         var result = await _service.RegisterAsync(dto);
-        if (result == null) return BadRequest(new { message = "Email is already in use" });
-        return Ok(result);
+        return result == null ? BadRequest(new { message = "Email already in use" }) : Ok(result);
     }
 
-// Path: Controllers/AuthController.cs
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto)
     {
-        try
-        {
+        try {
             var result = await _service.LoginAsync(dto);
-            
-            // If it returns null, the credentials were truly wrong
-            if (result == null) 
-                return Unauthorized(new { message = "Invalid email or password" });
-
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            // This catch block now receives the "Account not verified" message
-            // We send it back as a 401 Unauthorized so React can handle it
+            return result == null ? Unauthorized(new { message = "Invalid email or password" }) : Ok(result);
+        } catch (Exception ex) {
             return Unauthorized(new { message = ex.Message });
         }
     }
 
     [HttpPost("verify-email")]
-    public async Task<IActionResult> VerifyEmail(VerifyEmailDto dto) {
-        var success = await _service.VerifyEmailAsync(dto);
-        if (!success) return BadRequest(new { message = "Invalid or expired verification code." });
-        return Ok(new { message = "Email verified successfully!" });
-    }
+    public async Task<IActionResult> VerifyEmail(VerifyEmailDto dto) =>
+        await _service.VerifyEmailAsync(dto) ? Ok(new { message = "Verified!" }) : BadRequest(new { message = "Invalid code" });
 
     [HttpPost("resend-code")]
-    public async Task<IActionResult> ResendCode([FromBody] ResendCodeDto dto) // Changed this
-    {
-        // Pass dto.Email instead of just email
-        var success = await _service.ResendVerificationCodeAsync(dto.Email);
-        
-        if (!success) 
-            return BadRequest(new { message = "Unable to resend code. Account may already be verified or does not exist." });
-            
-        return Ok(new { message = "A new verification code has been sent." });
-    }
+    public async Task<IActionResult> ResendCode([FromBody] ResendCodeDto dto) =>
+        await _service.ResendVerificationCodeAsync(dto.Email) ? Ok(new { message = "Code sent" }) : BadRequest(new { message = "Failed" });
 
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordDto dto)
     {
         await _service.ForgotPasswordAsync(dto.Email);
-        // We return Ok even if the email doesn't exist for security reasons
-        return Ok(new { message = "If an account exists with that email, a reset code has been sent." });
+        return Ok(new { message = "Reset code sent if account exists" });
     }
 
     [HttpPost("reset-password")]
-    public async Task<IActionResult> ResetPassword(ResetPasswordDto dto)
-    {
-        var result = await _service.ResetPasswordAsync(dto);
-        if (!result) return BadRequest(new { message = "Invalid or expired reset code." });
-        
-        return Ok(new { message = "Your password has been successfully reset. You can now login." });
-    }
+    public async Task<IActionResult> ResetPassword(ResetPasswordDto dto) =>
+        await _service.ResetPasswordAsync(dto) ? Ok(new { message = "Reset successful" }) : BadRequest(new { message = "Invalid code" });
 }

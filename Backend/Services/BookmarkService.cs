@@ -9,6 +9,7 @@ public class BookmarkService : IBookmarkService
         _context = context;
     }
 
+    // 🚀 Lightweight: Handles both adding and removing in one clean flow
     public async Task<BookmarkToggleResponse> ToggleBookmarkAsync(long userId, long researchId)
     {
         var existing = await _context.Bookmarks
@@ -34,11 +35,12 @@ public class BookmarkService : IBookmarkService
         return new BookmarkToggleResponse(true, "Added to bookmarks.");
     }
 
+    // 🚀 Speed: Uses AsNoTracking and removes redundant .Include()
     public async Task<List<BookmarkedResearchDto>> GetUserBookmarksAsync(long userId)
     {
         return await _context.Bookmarks
+            .AsNoTracking() // Improves speed for read-only lists
             .Where(b => b.UserId == userId)
-            .Include(b => b.Research)
             .OrderByDescending(b => b.CreatedAt)
             .Select(b => new BookmarkedResearchDto(
                 b.Research.Id,
@@ -46,8 +48,8 @@ public class BookmarkService : IBookmarkService
                 b.Research.Tags,
                 b.Research.Status,
                 b.Research.Views,
-                b.Research.Validations, // Map the actual validations from Research
-                b.CreatedAt // This is when it was bookmarked
+                b.Research.Validations, 
+                b.CreatedAt 
             ))
             .ToListAsync();
     }

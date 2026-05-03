@@ -21,6 +21,16 @@ public record AuthResponseDto(
     string Token
 );
 
+public record UserResponseDto(
+    long Id,
+    string FullName,
+    string Email,
+    string UserType,
+    string Organization,
+    DateTime BirthDate,
+    string? Token = null
+);
+
 public class UpdateRoleDto
 {
     public string NewRole { get; set; } = string.Empty;

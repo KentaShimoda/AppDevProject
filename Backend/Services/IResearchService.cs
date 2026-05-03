@@ -3,15 +3,19 @@ using System.Threading.Tasks;
 
 public interface IResearchService
 {
+    // Reading Data
     Task<List<ResearchResponseDto>> GetAllAsync();
     Task<ResearchResponseDto?> GetByIdAsync(long id);
     Task<Research?> GetRawByIdAsync(long id);
-    Task<ResearchResponseDto> CreateAsync(ResearchUploadDto dto);
-    // Fixed: Signature matching the Controller call
-    Task<bool> EditDetailsAsync(long id, EditDetailsDto dto);
-    Task<ResearchResponseDto?> UploadVersionAsync(long id, NewVersionDto dto);
-    Task<bool> EvaluateAsync(long id, string status, string feedback);
-    Task<bool> UpdateHistoryFeedbackAsync(long researchId, int version, string newFeedback);
-    Task<bool> ToggleValidationAsync(long id, string facultyEmail);
+
+    // Actions (Updated with userId for Audit Logs)
+    Task<ResearchResponseDto> CreateAsync(ResearchUploadDto dto, long userId);
+    Task<bool> EditDetailsAsync(long id, EditDetailsDto dto, long userId);
+    Task<ResearchResponseDto?> UploadVersionAsync(long id, NewVersionDto dto, long userId);
+    Task<bool> EvaluateAsync(long id, string status, string feedback, long userId);
+    Task<bool> UpdateHistoryFeedbackAsync(long id, int version, string feedback, long userId);
+    Task<bool> ToggleValidationAsync(long id, string facultyEmail, long userId);
+    
+    // Metrics
     Task<bool> IncrementViewAsync(long id);
 }
