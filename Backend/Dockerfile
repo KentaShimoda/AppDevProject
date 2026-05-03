@@ -20,4 +20,4 @@ EXPOSE 80
 ENV ASPNETCORE_URLS=http://+:80
 
 # Replace 'YourProjectName' with the name of your .csproj file
-ENTRYPOINT ["dotnet", "YourProjectName.dll"]
+ENTRYPOINT ["dotnet", "Backend.dll"]
