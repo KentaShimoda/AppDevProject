@@ -87,12 +87,23 @@ public class ResearchService : IResearchService
         var r = await _context.ResearchStudies.FindAsync(id);
         if (r == null) return false;
 
+        // 1. Update Basic Info
         r.Title = dto.Title;
         r.Tags = dto.Tags;
+
+        // 2. Process Researchers (Splitting strings back into JSON)[cite: 2]
+        var names = dto.ResearcherNames.Split(", ", StringSplitOptions.RemoveEmptyEntries);
+        var emails = dto.ResearcherEmails.Split(", ", StringSplitOptions.RemoveEmptyEntries);
+        var resList = names.Select((n, i) => new { name = n, email = emails.Length > i ? emails[i] : "" }).ToList();
+        r.Researchers = JsonSerializer.Serialize(resList);
+
+        // 3. Update Coordinator[cite: 2]
+        r.Coordinator = JsonSerializer.Serialize(new { name = dto.CoordinatorName, email = dto.CoordinatorEmail });
+
         r.UpdatedAt = DateTime.UtcNow;
 
         var success = await _context.SaveChangesAsync() > 0;
-        if (success) FireAndForgetLog(userId, "RESEARCH_EDIT", $"Modified ID: {id}");
+        if (success) FireAndForgetLog(userId, "RESEARCH_EDIT", $"Updated metadata for Study: {id}");
         return success;
     }
 

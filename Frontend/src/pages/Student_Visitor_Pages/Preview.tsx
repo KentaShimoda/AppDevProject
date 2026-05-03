@@ -27,7 +27,17 @@ const Preview: React.FC = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isVersionOpen, setIsVersionOpen] = useState(false);
   const [feedbackEdit, setFeedbackEdit] = useState<{version: number, text: string} | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", tags: "" });
+  
+  // Expanded Edit Form to handle names and emails
+  const [editForm, setEditForm] = useState({ 
+    title: "", 
+    tags: "",
+    coordinatorName: "",
+    coordinatorEmail: "",
+    researcherNames: "",
+    researcherEmails: ""
+  });
+  
   const [versionForm, setVersionForm] = useState({ name: "", file: null as File | null });
 
   // PDF Navigation & Zoom States
@@ -39,7 +49,19 @@ const Preview: React.FC = () => {
     if (!id) return;
     researchService.getById(id).then(data => {
       setStudy(data);
-      setEditForm({ title: data.title, tags: data.tags });
+      
+      // Parse JSON strings for the Edit Form[cite: 13]
+      const coord = typeof data.coordinator === 'string' ? JSON.parse(data.coordinator) : data.coordinator;
+      const resList = typeof data.researchers === 'string' ? JSON.parse(data.researchers) : data.researchers;
+
+      setEditForm({ 
+        title: data.title, 
+        tags: data.tags,
+        coordinatorName: coord?.name || "",
+        coordinatorEmail: coord?.email || "",
+        researcherNames: resList?.map((r: any) => r.name || r).join(", ") || "",
+        researcherEmails: resList?.map((r: any) => r.email || "").join(", ") || ""
+      });
       
       const validated = data.validationLog?.some((v: any) => {
         const emailInLog = (v.facultyEmail || v.FacultyEmail || "").toLowerCase().trim();
@@ -62,7 +84,6 @@ const Preview: React.FC = () => {
     }
   }, [id]);
 
-  // Ownership & Coordinator Logic[cite: 11]
   const coordinatorData = study?.coordinator ? (typeof study.coordinator === 'string' ? JSON.parse(study.coordinator) : study.coordinator) : null;
   const isCoordinator = coordinatorData?.email?.toLowerCase() === currentUser.email?.toLowerCase();
   
@@ -91,7 +112,6 @@ const Preview: React.FC = () => {
     if (res.ok) { setIsEditOpen(false); fetchStudy(); }
   };
 
-  // IMPLEMENTED: Upload New Version functionality[cite: 9, 11]
   const handleUploadVersion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!versionForm.file || !versionForm.name) return alert("Please select a file and provide a version name.");
@@ -108,11 +128,9 @@ const Preview: React.FC = () => {
 
     if (res.ok) { 
       setIsVersionOpen(false); 
-      setVersionForm({ name: "", file: null }); // Reset form
+      setVersionForm({ name: "", file: null }); 
       fetchStudy(); 
       alert("New version uploaded successfully.");
-    } else {
-      alert("Failed to upload new version.");
     }
   };
 
@@ -226,10 +244,42 @@ const Preview: React.FC = () => {
               </div>
             </section>
 
+            {/* UPDATED: Academic Oversight with Email */}
+            <section className="space-y-6">
+              <h3 className="text-meta-label text-charcoal-black text-[11px] uppercase tracking-[0.4em]">Academic Oversight</h3>
+              <div className="bg-white border border-orange-100 p-6 rounded-[2rem] flex items-center gap-5 shadow-sm">
+                <div className="w-14 h-14 bg-ember-soft rounded-2xl flex items-center justify-center text-primary-orange font-black text-xl border border-orange-100">
+                  {coordinatorData?.name?.[0] || "C"}
+                </div>
+                <div>
+                  <p className="text-[11px] font-black uppercase text-charcoal-black tracking-wider">{coordinatorData?.name || "Unassigned"}</p>
+                  <p className="text-[9px] font-medium text-slate-400 lowercase leading-none mb-1">{coordinatorData?.email || "No email"}</p>
+                  <p className="text-[9px] font-black uppercase text-primary-orange bg-orange-50 px-2 py-1 rounded-md inline-block">Lead Coordinator</p>
+                </div>
+              </div>
+            </section>
+
+            {/* Research Team */}
+            <section className="space-y-6">
+              <h3 className="text-meta-label text-charcoal-black text-[11px] uppercase tracking-[0.4em]">Research Team</h3>
+              <div className="space-y-4">
+                {researcherList?.map((r: any, i: number) => (
+                  <div key={i} className="bg-orange-50/40 border border-orange-100 p-5 rounded-[1.5rem] flex items-center gap-4 transition-all hover:bg-white hover:shadow-md group">
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-charcoal-black font-black text-xs border border-orange-100 group-hover:bg-primary-orange group-hover:text-white transition-colors">
+                      { (r.name || r)[0] }
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-charcoal-black tracking-wide">{r.name || r}</p>
+                      <p className="text-[9px] font-medium text-slate-400 lowercase">{r.email || "No email recorded"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
             <section className="space-y-8">
               <h3 className="text-meta-label text-charcoal-black text-[11px] uppercase tracking-[0.4em]">Manuscript Timeline</h3>
               <div className="relative pl-8 border-l-2 border-orange-100 space-y-12 ml-2">
-                
                 <div className="relative">
                   <div className={`absolute -left-[37px] top-1 w-5 h-5 rounded-full border-4 border-white shadow-xl cursor-pointer transition-all ${selectedVersion === study.version ? 'bg-primary-orange scale-125' : 'bg-orange-100'}`} onClick={() => setSelectedVersion(study.version)}></div>
                   <p className="text-[11px] font-black text-charcoal-black uppercase tracking-wide">v{study.version}.0 (Active Iteration)</p>
@@ -284,7 +334,7 @@ const Preview: React.FC = () => {
 
       {/* MODALS */}
 
-      {/* 1. Upload New Version Modal[cite: 11] */}
+      {/* 1. Upload New Version Modal */}
       {isVersionOpen && (
         <div className="fixed inset-0 z-[200] bg-charcoal-black/60 backdrop-blur-md flex items-center justify-center p-12">
           <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl w-full max-w-md border-t-8 border-primary-orange">
@@ -307,19 +357,13 @@ const Preview: React.FC = () => {
         </div>
       )}
       
-      {/* 2. feedbackEdit Modal for Coordinator */}
+      {/* 2. Feedback Modal */}
       {feedbackEdit && (
         <div className="fixed inset-0 z-[200] bg-charcoal-black/60 backdrop-blur-md flex items-center justify-center p-12">
           <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl w-full max-w-md border-t-8 border-charcoal-black">
             <h2 className="text-3xl font-black uppercase mb-4 text-charcoal-black tracking-tight leading-none">Modify Log</h2>
             <p className="text-meta-label mb-10 lowercase tracking-normal">Editing system log for version {feedbackEdit.version}.0</p>
-            <textarea 
-              rows={5} 
-              value={feedbackEdit.text} 
-              onChange={(e) => setFeedbackEdit({...feedbackEdit, text: e.target.value})} 
-              className="input-terminal w-full p-6 text-sm resize-none" 
-              placeholder="Enter new coordinator remarks..."
-            />
+            <textarea rows={5} value={feedbackEdit.text} onChange={(e) => setFeedbackEdit({...feedbackEdit, text: e.target.value})} className="input-terminal w-full p-6 text-sm resize-none" placeholder="Enter new coordinator remarks..." />
             <div className="flex gap-6 pt-6">
               <button onClick={() => setFeedbackEdit(null)} className="flex-1 font-black text-xs text-slate-400 uppercase tracking-widest hover:text-verified-red transition-colors">Cancel</button>
               <button onClick={handleSaveFeedback} className="btn-terminal-primary flex-1 py-5">Update Log</button>
@@ -328,17 +372,50 @@ const Preview: React.FC = () => {
         </div>
       )}
 
-      {/* 3. isEditOpen Modal for Owners */}
+      {/* 3. UPDATED: Comprehensive Edit Details Modal */}
       {isEditOpen && (
-        <div className="fixed inset-0 z-[100] bg-charcoal-black/60 backdrop-blur-md flex items-center justify-center p-12">
-          <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl w-full max-w-md border-t-8 border-charcoal-black">
-            <h2 className="text-3xl font-black uppercase mb-10 text-charcoal-black tracking-tight leading-none">Update Record</h2>
-            <form onSubmit={handleUpdateDetails} className="space-y-6">
-              <input required value={editForm.title} onChange={(e) => setEditForm({...editForm, title: e.target.value})} className="input-terminal w-full p-6" placeholder="Manuscript Title" />
-              <input required value={editForm.tags} onChange={(e) => setEditForm({...editForm, tags: e.target.value})} className="input-terminal w-full p-6" placeholder="Tags" />
+        <div className="fixed inset-0 z-[100] bg-charcoal-black/60 backdrop-blur-md flex items-center justify-center p-12 overflow-y-auto">
+          <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl w-full max-w-2xl border-t-8 border-charcoal-black my-auto">
+            <h2 className="text-3xl font-black uppercase mb-10 text-charcoal-black tracking-tight leading-none">Update Manuscript Record</h2>
+            <form onSubmit={handleUpdateDetails} className="space-y-8">
+              
+              {/* Section 1: Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-meta-label block mb-2 ml-1">Title</label>
+                  <input required value={editForm.title} onChange={(e) => setEditForm({...editForm, title: e.target.value})} className="input-terminal w-full p-4" />
+                </div>
+                <div>
+                  <label className="text-meta-label block mb-2 ml-1">Tags (Comma separated)</label>
+                  <input required value={editForm.tags} onChange={(e) => setEditForm({...editForm, tags: e.target.value})} className="input-terminal w-full p-4" />
+                </div>
+              </div>
+
+              {/* Section 2: Coordinator Info */}
+              <div className="p-6 bg-orange-50 rounded-3xl space-y-4">
+                <h4 className="text-[10px] font-black uppercase text-primary-orange tracking-widest">Coordinator Configuration</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input required placeholder="Name" value={editForm.coordinatorName} onChange={(e) => setEditForm({...editForm, coordinatorName: e.target.value})} className="input-terminal w-full p-4 bg-white" />
+                  <input required placeholder="Email" value={editForm.coordinatorEmail} onChange={(e) => setEditForm({...editForm, coordinatorEmail: e.target.value})} className="input-terminal w-full p-4 bg-white" />
+                </div>
+              </div>
+
+              {/* Section 3: Researchers Info */}
+              <div className="p-6 bg-slate-50 rounded-3xl space-y-4">
+                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Research Team Configuration</h4>
+                <div>
+                   <label className="text-[9px] font-bold text-slate-400 mb-1 block">Names (Comma separated)</label>
+                   <textarea rows={2} required value={editForm.researcherNames} onChange={(e) => setEditForm({...editForm, researcherNames: e.target.value})} className="input-terminal w-full p-4 bg-white resize-none" />
+                </div>
+                <div>
+                   <label className="text-[9px] font-bold text-slate-400 mb-1 block">Emails (Comma separated)</label>
+                   <textarea rows={2} required value={editForm.researcherEmails} onChange={(e) => setEditForm({...editForm, researcherEmails: e.target.value})} className="input-terminal w-full p-4 bg-white resize-none" />
+                </div>
+              </div>
+
               <div className="flex gap-6 pt-6">
                 <button type="button" onClick={() => setIsEditOpen(false)} className="flex-1 font-black text-xs text-slate-400 uppercase tracking-widest hover:text-verified-red transition-colors">Abort</button>
-                <button type="submit" className="btn-terminal-primary flex-1 py-5">Commit Change</button>
+                <button type="submit" className="btn-terminal-primary flex-1 py-5">Commit Changes</button>
               </div>
             </form>
           </div>

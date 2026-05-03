@@ -26,7 +26,14 @@ public record ResearchResponseDto(
     List<ValidationResponseDto> ValidationLog
 );
 
-public record EditDetailsDto(string Title, string Tags);
+public record EditDetailsDto(
+    string Title, 
+    string Tags,
+    string CoordinatorName, 
+    string CoordinatorEmail,
+    string ResearcherNames,
+    string ResearcherEmails
+);
 public record NewVersionDto(string VersionName, IFormFile PdfFile);
 public record EvaluationDto(string Status, string Feedback);
 public record HistoryResponseDto(int Version, string VersionName, string? Feedback, DateTime UploadedAt);
