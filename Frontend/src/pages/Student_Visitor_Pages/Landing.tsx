@@ -22,12 +22,12 @@ const Landing: React.FC = () => {
         <ul className="flex gap-10 list-none items-center">
           <li>
             <Link className="text-[11px] font-black uppercase tracking-widest hover:text-primary-orange transition-colors" to="/login">
-              Access Terminal
+              Login
             </Link>
           </li>
           <li>
             <Link className="btn-terminal-primary px-8 py-3 text-[10px]" to="/signup">
-              Create Account
+              Sign Up
             </Link>
           </li>
         </ul>
