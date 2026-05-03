@@ -1,72 +1,63 @@
 import { API_BASE_URL } from "./apiConfig";
 
 export const authService = {
-  register: async (userData: any) => {
-    const response = await fetch(`${API_BASE_URL}/Auth/register`, {
+  // POST api/Auth/register[cite: 36]
+  register: async (dto: any) => {
+    const res = await fetch(`${API_BASE_URL}/Auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(userData),
+      body: JSON.stringify(dto)
     });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Registration failed");
-    }
-    return response.json();
+    return res.ok ? res.json() : null;
   },
 
-  login: async (credentials: any) => {
-    const response = await fetch(`${API_BASE_URL}/Auth/login`, {
+  // POST api/Auth/login[cite: 36]
+  login: async (dto: any) => {
+    const res = await fetch(`${API_BASE_URL}/Auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify(dto)
     });
-
-    // FIX: Instead of throwing a generic string, we must read the server's JSON response
-    if (!response.ok) {
-        const errorData = await response.json();
-        // This will now correctly throw "Account not verified. Please verify your email."
-        throw new Error(errorData.message || "Invalid email or password");
-    }
-
-    const data = await response.json();
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data));
-    return data;
+    return res.ok ? res.json() : null;
   },
 
-  verifyEmail: async (email: string, code: string) => {
-    const response = await fetch(`${API_BASE_URL}/Auth/verify-email`, {
+  // POST api/Auth/verify-email[cite: 36]
+  verifyEmail: async (dto: any) => {
+    const res = await fetch(`${API_BASE_URL}/Auth/verify-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, code }),
+      body: JSON.stringify(dto)
     });
-    return response.ok;
+    return res.ok;
   },
 
+  // POST api/Auth/resend-code[cite: 36]
   resendCode: async (email: string) => {
-    const response = await fetch(`${API_BASE_URL}/Auth/resend-code`, {
+    const res = await fetch(`${API_BASE_URL}/Auth/resend-code`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email })
     });
-    return response.ok;
+    return res.ok;
   },
 
+  // POST api/Auth/forgot-password[cite: 36]
   forgotPassword: async (email: string) => {
-    const response = await fetch(`${API_BASE_URL}/Auth/forgot-password`, {
+    const res = await fetch(`${API_BASE_URL}/Auth/forgot-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email })
     });
-    return response.ok;
+    return res.ok;
   },
 
-  resetPassword: async (resetData: any) => {
-    const response = await fetch(`${API_BASE_URL}/Auth/reset-password`, {
+  // POST api/Auth/reset-password[cite: 36]
+  resetPassword: async (dto: any) => {
+    const res = await fetch(`${API_BASE_URL}/Auth/reset-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(resetData),
+      body: JSON.stringify(dto)
     });
-    return response.ok;
+    return res.ok;
   }
 };

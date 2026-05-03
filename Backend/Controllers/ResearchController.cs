@@ -57,6 +57,25 @@ public class ResearchController : ControllerBase
     {
         var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
         if (string.IsNullOrEmpty(email)) return Unauthorized();
-        return await _service.ToggleValidationAsync(id, email, CurrentUserId) ? Ok() : NotFound();
+
+        var success = await _service.ToggleValidationAsync(id, email, CurrentUserId);
+        return success ? Ok() : NotFound();
+    }
+
+    // This is the correct version. The duplicate at line 42 has been removed.[cite: 37]
+    [Authorize(Roles = "Faculty / Professional")]
+    [HttpPatch("{id:long}/history/{version:int}/feedback")]
+    public async Task<IActionResult> UpdateFeedbackAsync(long id, int version, [FromBody] string feedback)
+    {
+        var success = await _service.UpdateFeedbackAsync(id, version, feedback, CurrentUserId);
+        return success ? NoContent() : NotFound();
+    }
+
+    [HttpPost("{id:long}/view")]
+    public async Task<IActionResult> RecordView(long id)
+    {
+        // 🚀 Protocol: Trigger the view increment logic[cite: 28, 29]
+        var success = await _service.IncrementViewAsync(id);
+        return success ? Ok() : NotFound();
     }
 }

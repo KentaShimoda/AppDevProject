@@ -1,4 +1,15 @@
-// src/services/apiConfig.ts
+export const API_BASE_URL = "http://localhost:5016/api";
 
-// Vite automatically selects the correct variable based on the build mode
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+export const getAuthHeaders = (isMultipart = false) => {
+  const token = localStorage.getItem("token");
+  const headers: HeadersInit = {
+    "Authorization": token ? `Bearer ${token}` : "",
+  };
+  
+  // Fetch automatically sets the boundary for FormData; do not set Content-Type
+  if (!isMultipart) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  return headers;
+};

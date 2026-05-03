@@ -17,14 +17,14 @@ import UserManagement from "./pages/Admin_Pages/UserManagement";
 const App: React.FC = () => {
   return (
     <div>
-      {/* Navigation
+      Navigation
       <nav style={{ marginBottom: "1rem" }}>
         <Link to="/">Landing</Link> | <Link to="/Login">Login</Link> |{" "}
         <Link to="/Signup">Signup</Link> | <Link to="/Dashboard">Dashboard</Link> | 
         <Link to="/Profile">Profile</Link> | <Link to="/Myarchive">My Archive</Link> |  
         <Link to="/Preview">Preview</Link> | <Link to="/Coordinator">Coordinator</Link> | 
-        <Link to="/Upload">Upload</Link> | <Link to="/UserManagement">User Management</Link>
-      </nav> */}
+        <Link to="/Upload">Upload</Link> | <Link to="/UserManagement">User Management</Link> | <Link to="/VerifyEmail">Verify Email</Link> | <Link to="/forgot-password">Forgot Password</Link> | <Link to="/reset-password">Reset Password</Link> 
+      </nav>
 
       {/* Route Definitions */}
       <Routes>
@@ -40,7 +40,7 @@ const App: React.FC = () => {
         <Route path="/VerifyEmail" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />  
-        <Route path="/UserManagement" element={<UserManagement />} />
+        <Route path="/Admin/UserManagement" element={<UserManagement />} />
       </Routes>
     </div>
   );

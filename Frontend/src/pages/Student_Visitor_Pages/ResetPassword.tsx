@@ -6,6 +6,8 @@ const ResetPassword: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Initialize data with the email carried over from the recovery request[cite: 33, 42]
   const [data, setData] = useState({ 
     email: location.state?.email || "", 
     code: "", 
@@ -15,32 +17,31 @@ const ResetPassword: React.FC = () => {
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    
     try {
-      // Execute reset password protocol
+      // 🚀 Protocol: Finalize password reset via the Auth service[cite: 33, 36]
       const success = await authService.resetPassword(data);
+      
       if (success) {
         alert("Access restored. Protocol complete. Redirecting to login.");
         navigate("/Login");
       } else {
         alert("Invalid recovery key or session expired.");
       }
-    } catch (err) {
-      alert("Verification protocol failed. Please re-initialize recovery.");
+    } catch (err: any) {
+      alert(err.message || "Verification protocol failed. Please re-initialize recovery.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // UI variable styling synchronized with index.css
   const inputWrapper = "relative group";
   const labelClass = "absolute -top-3 left-4 bg-white px-2 text-[10px] font-black tracking-widest text-primary-orange group-focus-within:text-primary-orange transition-colors uppercase";
 
   return (
     <div className="min-h-screen bg-charcoal-black flex items-center justify-center p-8 font-sans antialiased animate-in fade-in duration-500">
-      {/* Manuscript Card Styling */}
       <div className="bg-white p-12 rounded-manuscript shadow-2xl w-full max-w-md text-center border-t-8 border-primary-orange relative overflow-hidden">
         
-        {/* Decorative Ember Element */}
         <div className="absolute -top-10 -right-10 w-32 h-32 bg-ember-soft rounded-full opacity-50"></div>
         
         <div className="mb-10">
@@ -53,7 +54,6 @@ const ResetPassword: React.FC = () => {
         </div>
 
         <form onSubmit={handleReset} className="space-y-10">
-          {/* Recovery Code Input */}
           <div className={inputWrapper}>
             <label className={labelClass}>Recovery Key</label>
             <input 
@@ -66,7 +66,6 @@ const ResetPassword: React.FC = () => {
             />
           </div>
 
-          {/* New Password Input[cite: 13] */}
           <div className={inputWrapper}>
             <label className={labelClass}>Secure Password</label>
             <input 

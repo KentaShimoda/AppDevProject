@@ -13,7 +13,7 @@ public interface IResearchService
     Task<bool> EditDetailsAsync(long id, EditDetailsDto dto, long userId);
     Task<ResearchResponseDto?> UploadVersionAsync(long id, NewVersionDto dto, long userId);
     Task<bool> EvaluateAsync(long id, string status, string feedback, long userId);
-    Task<bool> UpdateHistoryFeedbackAsync(long id, int version, string feedback, long userId);
+    Task<bool> UpdateFeedbackAsync(long id, int version, string feedback, long userId);
     Task<bool> ToggleValidationAsync(long id, string facultyEmail, long userId);
     
     // Metrics

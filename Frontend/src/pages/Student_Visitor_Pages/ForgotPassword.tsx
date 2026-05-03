@@ -10,12 +10,19 @@ const ForgotPassword: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    
     try {
-      await authService.forgotPassword(email);
-      // Move to reset page and carry email over via state
-      navigate("/reset-password", { state: { email } });
-    } catch (err) {
-      alert("Failed to initialize recovery protocol. Please try again.");
+      // 🚀 Protocol: Request recovery key from the identity service[cite: 32, 36]
+      const success = await authService.forgotPassword(email);
+      
+      if (success) {
+        // Redirect to reset terminal and preserve email in the navigation state[cite: 41]
+        navigate("/reset-password", { state: { email } });
+      } else {
+        throw new Error("Archive failed to issue recovery key.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to initialize recovery protocol. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -23,10 +30,8 @@ const ForgotPassword: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-charcoal-black flex items-center justify-center p-8 font-sans antialiased animate-in fade-in duration-500">
-      {/* Manuscript Card Styling */}
       <div className="bg-white p-12 rounded-manuscript shadow-2xl w-full max-w-md text-center border-t-8 border-primary-orange relative overflow-hidden">
         
-        {/* Decorative Ember Element */}
         <div className="absolute -top-10 -right-10 w-32 h-32 bg-ember-soft rounded-full opacity-50"></div>
         
         <div className="mb-10">

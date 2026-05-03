@@ -8,7 +8,8 @@ using System.Security.Claims;
 public class AdminController : ControllerBase
 {
     private readonly IAdminService _service;
-    public AdminController(IAdminService service) { _service = service; }
+    private readonly IResearchService _researchService; // For backup user data retrieval
+    public AdminController(IAdminService service, IResearchService researchService) { _service = service; _researchService = researchService; }
 
     // Helper to get the Admin's ID from JWT[cite: 12]
     private long CurrentAdminId => long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
@@ -36,14 +37,25 @@ public class AdminController : ControllerBase
     }
 
     // Backup functionality[cite: 12]
+// Updated Backup Protocol in AdminController
     [HttpGet("backup/metadata")]
     public async Task<IActionResult> ExportMetadata()
     {
+        // Synchronize both User Registry and Research Archive data
         var users = await _service.GetAllUsersAsync();
+        
+        // Requirement: Ensure your service layer has a method to retrieve all research
+        // This aligns with the frontend researchService.getAll() requirement[cite: 17]
+        var researches = await _researchService.GetAllAsync(); 
+
         return Ok(new { 
             timestamp = DateTime.UtcNow, 
             source = "Filipino Scholar Archive",
-            data = users 
+            // Comprehensive data payload
+            data = new {
+                users = users,
+                researches = researches
+            }
         });
     }
 }

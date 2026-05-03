@@ -1,25 +1,18 @@
-import { API_BASE_URL } from "./apiConfig";
+import { API_BASE_URL, getAuthHeaders } from "./apiConfig";
 
 export const bookmarkService = {
-  // Toggles the bookmark state for a specific research ID
+  // POST api/Bookmark/toggle/{researchId}[cite: 37]
   toggle: async (researchId: number) => {
-    const token = localStorage.getItem("token");
-    const response = await fetch(`${API_BASE_URL}/Bookmark/toggle/${researchId}`, {
+    const res = await fetch(`${API_BASE_URL}/Bookmark/toggle/${researchId}`, {
       method: "POST",
-      headers: { 
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
+      headers: getAuthHeaders()
     });
-    return await response.json();
+    return res.json();
   },
 
-  // Retrieves the current user's bookmarked studies
+  // GET api/Bookmark/my-list[cite: 37]
   getMyList: async () => {
-    const token = localStorage.getItem("token");
-    const response = await fetch(`${API_BASE_URL}/Bookmark/my-list`, {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-    return await response.json();
+    const res = await fetch(`${API_BASE_URL}/Bookmark/my-list`, { headers: getAuthHeaders() });
+    return res.json();
   }
 };

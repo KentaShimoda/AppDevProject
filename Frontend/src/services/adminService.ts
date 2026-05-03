@@ -1,62 +1,49 @@
-import { API_BASE_URL } from "./apiConfig";
-
-const getAuthHeaders = () => ({
-  "Content-Type": "application/json",
-  "Authorization": `Bearer ${localStorage.getItem("token")}`
-});
+import { API_BASE_URL, getAuthHeaders } from "./apiConfig";
 
 export const adminService = {
-  // Requirement 4.1: Retrieve all registered subjects
+  // Requirement: Synchronize with the researcher registry[cite: 13]
   getAllUsers: async () => {
-    const response = await fetch(`${API_BASE_URL}/Admin/users`, {
-      headers: getAuthHeaders(),
+    const res = await fetch(`${API_BASE_URL}/Admin/users`, {
+      headers: getAuthHeaders()
     });
-    if (!response.ok) throw new Error("Failed to retrieve user registry.");
-    return response.json();
+    if (!res.ok) throw new Error("Registry access denied.");
+    return res.json();
   },
 
-  // Requirement 4.2: Retrieve audit archives[cite: 3]
+  // Protocol: Fetch Audit Archive[cite: 13]
   getAuditLogs: async () => {
-    const response = await fetch(`${API_BASE_URL}/Admin/audit-logs`, {
-      headers: getAuthHeaders(),
+    const res = await fetch(`${API_BASE_URL}/Admin/audit-logs`, {
+      headers: getAuthHeaders()
     });
-    if (!response.ok) throw new Error("Failed to synchronize audit archives.");
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
+    if (!res.ok) throw new Error("Audit archive access denied.");
+    return res.json();
   },
 
-  // Protocol: Update access level using the UpdateRoleDto structure[cite: 3]
-  updateUserRole: async (userId: number, newRole: string) => {
-    const response = await fetch(`${API_BASE_URL}/Admin/users/${userId}/role`, {
+  // Protocol: Update User authorization[cite: 13]
+  updateUserRole: async (userId: number, role: string) => {
+    const res = await fetch(`${API_BASE_URL}/Admin/users/${userId}/role`, {
       method: "PATCH",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ newRole }), 
+      body: JSON.stringify(role) 
     });
-    if (!response.ok) throw new Error("Failed to update user protocol.");
-    return true;
+    return res.ok;
   },
 
-  // Protocol: Permanent account purge
+  // Protocol: Remove researcher record[cite: 13]
   deleteUser: async (userId: number) => {
-    const response = await fetch(`${API_BASE_URL}/Admin/users/${userId}`, {
+    const res = await fetch(`${API_BASE_URL}/Admin/users/${userId}`, {
       method: "DELETE",
-      headers: getAuthHeaders(),
+      headers: getAuthHeaders()
     });
-    if (!response.ok) throw new Error("Account deletion protocol failed.");
-    return true;
+    return res.ok;
   },
 
-  // Requirement 4.4: Execute Metadata Backup[cite: 3]
-  exportMetadata: async () => {
-    const response = await fetch(`${API_BASE_URL}/Admin/backup/metadata`, {
-      headers: getAuthHeaders(),
-    });
-    const result = await response.json();
-    const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `metadata_archive_${new Date().getTime()}.json`;
-    link.click();
-  }
+  // 🚀 Protocol: Enhanced Metadata Export with Stream Handling[cite: 13, 14]
+    exportMetadata: async () => {
+        const res = await fetch(`${API_BASE_URL}/Admin/backup/metadata`, {
+        headers: getAuthHeaders()
+        });
+        if (!res.ok) throw new Error("Export failed.");
+        return res.json(); // Returns { timestamp, source, data }[cite: 20]
+    }
 };

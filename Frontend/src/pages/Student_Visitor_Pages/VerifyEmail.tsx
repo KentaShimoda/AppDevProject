@@ -5,34 +5,52 @@ import { authService } from "../../services/authService";
 const VerifyEmail: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  
+  // Retrieve the email from the navigation state carried over from Signup or Login[cite: 34]
   const email = location.state?.email || "";
+  
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [isResending, setIsResending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(""); // Clear previous errors
+    setError(""); 
+    setIsVerifying(true);
+
     try {
-      const success = await authService.verifyEmail(email, code);
+      // 🚀 Protocol: Verify the security key against the identity registry
+      const success = await authService.verifyEmail({ email, code });
+      
       if (success) {
-        alert("Account verified! You can now login.");
+        alert("Identity Verified. Account access cleared. You can now login.");
         navigate("/Login");
       } else {
-        setError("Invalid or expired verification code.");
+        setError("Invalid or expired security key. Please request a new transmission.");
       }
-    } catch (err) {
-      setError("Verification protocol failed. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Verification protocol failed. System sync error.");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const handleResend = async () => {
+    if (!email) return setError("No registered email detected in terminal state.");
+    
     setIsResending(true);
+    setError(""); 
     try {
-      await authService.resendCode(email);
-      alert("A fresh security code has been transmitted to your email.");
-    } catch (err) {
-      setError("Failed to re-transmit verification code.");
+      // 🚀 Protocol: Re-transmit a fresh security key
+      const success = await authService.resendCode(email);
+      if (success) {
+        alert("A fresh security code has been transmitted to your email.");
+      } else {
+        setError("Failed to re-transmit verification code. Account may already be verified.");
+      }
+    } catch (err: any) {
+      setError("Transmission error. Failed to connect to the mail server.");
     } finally {
       setIsResending(false);
     }
@@ -40,7 +58,7 @@ const VerifyEmail: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-charcoal-black flex items-center justify-center p-8 font-sans antialiased">
-      {/* Manuscript Card Styling */}
+      {/* Manuscript Card Styling[cite: 34] */}
       <div className="bg-white p-12 rounded-manuscript shadow-2xl w-full max-w-md text-center border-t-8 border-primary-orange relative overflow-hidden">
         
         {/* Decorative Ember Element */}
@@ -51,7 +69,7 @@ const VerifyEmail: React.FC = () => {
             Verify Email
           </h2>
           <p className="text-meta-label mt-2 lowercase tracking-normal">
-            Protocol sent to: <span className="text-charcoal-black font-bold">{email}</span>
+            Protocol sent to: <span className="text-charcoal-black font-bold">{email || "UNKNOWN_SUBJECT"}</span>
           </p>
         </div>
         
@@ -74,14 +92,16 @@ const VerifyEmail: React.FC = () => {
               className="input-terminal text-center text-3xl font-black tracking-[0.5em] py-6"
               placeholder="000000"
               required
+              disabled={isVerifying}
             />
           </div>
 
           <button 
             type="submit" 
-            className="btn-terminal-primary w-full py-5 text-sm uppercase tracking-[0.2em]"
+            disabled={isVerifying}
+            className="btn-terminal-primary w-full py-5 text-sm uppercase tracking-[0.2em] disabled:opacity-50"
           >
-            Verify Account
+            {isVerifying ? "Verifying..." : "Verify Account"}
           </button>
         </form>
         
@@ -90,7 +110,7 @@ const VerifyEmail: React.FC = () => {
             Didn't receive the transmission?
           </p>
           <button 
-            disabled={isResending}
+            disabled={isResending || isVerifying}
             onClick={handleResend}
             className="text-primary-orange font-black text-xs uppercase tracking-[0.2em] hover:text-charcoal-black transition-colors disabled:opacity-50"
           >
