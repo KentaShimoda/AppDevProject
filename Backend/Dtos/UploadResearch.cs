@@ -1,7 +1,24 @@
+public record ResearchDto(
+    long     Id,
+    string   Title,
+    string   Tags,
+    string?  Category,
+    string   Coordinator,
+    string   Researchers,
+    int      Views,
+    int      Validations,
+    string   Status,
+    int      Version,
+    string   VersionName,
+    string?  Feedback,
+    DateTime CreatedAt
+);
+
 public record ResearchUploadDto(
     long UserId,
     string Title, 
     string Tags,
+    string? Category,
     string CoordinatorName, 
     string CoordinatorEmail,
     string ResearcherNames,
@@ -13,6 +30,7 @@ public record ResearchResponseDto(
     long Id,
     string Title,
     string Tags,
+     string? Category,  
     string Coordinator,
     string Researchers,
     int Views,
@@ -29,6 +47,7 @@ public record ResearchResponseDto(
 public record EditDetailsDto(
     string Title, 
     string Tags,
+    string? Category,  
     string CoordinatorName, 
     string CoordinatorEmail,
     string ResearcherNames,

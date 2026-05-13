@@ -2,6 +2,24 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../services/apiConfig";
 
+// ─── Research Categories ──────────────────────────────────────────────────────
+const RESEARCH_CATEGORIES = [
+  "Computer Science & IT",
+  "Engineering & Technology",
+  "Natural Sciences",
+  "Mathematics & Statistics",
+  "Social Sciences",
+  "Humanities & Arts",
+  "Education & Pedagogy",
+  "Medicine & Health Sciences",
+  "Business & Economics",
+  "Environmental Studies",
+  "Law & Political Science",
+  "Agriculture & Food Science",
+  "Architecture & Planning",
+  "Other",
+];
+
 const Upload: React.FC = () => {
   const { id } = useParams<{ id: string }>(); // Check for Research ID
   const isVersionMode = !!id; // Auto-detect mode
@@ -15,7 +33,7 @@ const Upload: React.FC = () => {
     { name: currentUser.fullName || "", email: currentUser.email || "" }
   ]);
   const [coordinator, setCoordinator] = useState({ name: "", email: "" });
-  const [formData, setFormData] = useState({ title: "", tags: "", versionName: "" }); 
+  const [formData, setFormData] = useState({ title: "", tags: "", category: "", versionName: "" }); 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -56,9 +74,10 @@ const Upload: React.FC = () => {
           body: data
         });
       } else {
-        // MODE B: Standard New Submission API[cite: 10, 11]
+        // MODE B: Standard New Submission API
         data.append("Title", formData.title);
         data.append("Tags", formData.tags); 
+        data.append("Category", formData.category); // Added Category
         data.append("CoordinatorName", coordinator.name);
         data.append("CoordinatorEmail", coordinator.email);
         data.append("ResearcherNames", researchers.map(r => r.name).join(", "));
@@ -130,7 +149,7 @@ const Upload: React.FC = () => {
             <div className="bg-white p-12 rounded-manuscript shadow-2xl border border-orange-50 space-y-12">
               
               {isVersionMode ? (
-                /* VERSION REVISION MODE: Only show Version Name[cite: 10] */
+                /* VERSION REVISION MODE: Only show Version Name */
                 <section>
                   <div className="flex items-center gap-6 mb-10">
                     <h2 className="text-h2 text-[12px] tracking-widest uppercase">02. Revision Context</h2>
@@ -138,7 +157,7 @@ const Upload: React.FC = () => {
                   </div>
                   <div className="w-full">
                     <label className="text-meta-label block mb-3 ml-1">Version Title (e.g., Final Draft, Review Revision)</label>
-                    <input required value={formData.versionName} onChange={(e) => setFormData({...formData, versionName: e.target.value})} className="input-terminal px-6 py-5" placeholder="Name this specific version..." />
+                    <input required value={formData.versionName} onChange={(e) => setFormData({...formData, versionName: e.target.value})} className="input-terminal px-6 py-5 w-full" placeholder="Name this specific version..." />
                   </div>
                 </section>
               ) : (
@@ -149,14 +168,34 @@ const Upload: React.FC = () => {
                       <h2 className="text-h2 text-[12px] tracking-widest uppercase">02. Study Metadata</h2>
                       <div className="flex-1 h-px bg-orange-100"></div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                      <div className="md:col-span-8">
+                    <div className="space-y-8">
+                      <div>
                         <label className="text-meta-label block mb-3 ml-1">Research Title</label>
-                        <input required value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="input-terminal px-6 py-5" placeholder="Enter official study title..." />
+                        <input required value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="input-terminal px-6 py-5 w-full" placeholder="Enter official study title..." />
                       </div>
-                      <div className="md:col-span-4">
-                        <label className="text-meta-label block mb-3 ml-1">Tags</label>
-                        <input required value={formData.tags} onChange={(e) => setFormData({...formData, tags: e.target.value})} className="input-terminal px-6 py-5" placeholder="AI, Robotics, Data" />
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                          <label className="text-meta-label block mb-3 ml-1">Category / Field</label>
+                          <input 
+                            required 
+                            list="research-categories-list" 
+                            value={formData.category} 
+                            onChange={(e) => setFormData({...formData, category: e.target.value})} 
+                            className="input-terminal px-6 py-5 w-full" 
+                            placeholder="e.g. Computer Science, Medicine…" 
+                            autoComplete="off"
+                          />
+                          <datalist id="research-categories-list">
+                            {RESEARCH_CATEGORIES.map((cat) => (
+                              <option key={cat} value={cat} />
+                            ))}
+                          </datalist>
+                        </div>
+                        <div>
+                          <label className="text-meta-label block mb-3 ml-1">Tags</label>
+                          <input required value={formData.tags} onChange={(e) => setFormData({...formData, tags: e.target.value})} className="input-terminal px-6 py-5 w-full" placeholder="AI, Robotics, Data (Comma Separated)" />
+                        </div>
                       </div>
                     </div>
                   </section>

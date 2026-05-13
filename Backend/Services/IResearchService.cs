@@ -7,15 +7,16 @@ public interface IResearchService
     Task<List<ResearchResponseDto>> GetAllAsync();
     Task<ResearchResponseDto?> GetByIdAsync(long id);
     Task<Research?> GetRawByIdAsync(long id);
+    Task<List<ResearchResponseDto>> GetByCategoryAsync(string category);   // NEW
 
-    // Actions (Updated with userId for Audit Logs)
+    // Actions
     Task<ResearchResponseDto> CreateAsync(ResearchUploadDto dto, long userId);
     Task<bool> EditDetailsAsync(long id, EditDetailsDto dto, long userId);
     Task<ResearchResponseDto?> UploadVersionAsync(long id, NewVersionDto dto, long userId);
     Task<bool> EvaluateAsync(long id, string status, string feedback, long userId);
     Task<bool> UpdateFeedbackAsync(long id, int version, string feedback, long userId);
     Task<bool> ToggleValidationAsync(long id, string facultyEmail, long userId);
-    
+
     // Metrics
     Task<bool> IncrementViewAsync(long id);
 }

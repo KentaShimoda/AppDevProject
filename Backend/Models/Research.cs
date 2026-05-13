@@ -14,10 +14,14 @@ public class Research
     [Column("tags")]
     public string Tags { get; set; } = string.Empty;
 
-    [Column("coordinator", TypeName = "jsonb")] 
+    // --- NEW: single primary category for interest-based filtering ---
+    [Column("category")]
+    public string? Category { get; set; }
+
+    [Column("coordinator", TypeName = "jsonb")]
     public string Coordinator { get; set; } = "{}";
 
-    [Column("researchers", TypeName = "jsonb")] 
+    [Column("researchers", TypeName = "jsonb")]
     public string Researchers { get; set; } = "[]";
 
     [Column("pdf_data")]
@@ -41,7 +45,6 @@ public class Research
     [Column("updated_at")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation property for history
     public List<ResearchHistory> History { get; set; } = new();
     public List<ResearchValidation> ValidationLog { get; set; } = new();
 }
@@ -70,7 +73,8 @@ public class ResearchHistory
 }
 
 [Table("research_validations")]
-public class ResearchValidation {
+public class ResearchValidation
+{
     [Key] [Column("id")] public int Id { get; set; }
     [Column("research_id")] public long ResearchId { get; set; }
     [Column("faculty_email")] public string FacultyEmail { get; set; } = string.Empty;

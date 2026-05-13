@@ -1,41 +1,40 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema; //
+using System.ComponentModel.DataAnnotations.Schema;
 
-[Table("Users")] // Forces EF to use the capitalized table name
+[Table("Users")]
 public class User
 {
     [Key]
-    [Column("id")] // Maps to your 'Id' column
+    [Column("id")]
     public long Id { get; set; }
-    
-    [Column("firstname")] // Maps to 'FirstName' in your SQL
+
+    [Column("firstname")]
     public string FirstName { get; set; } = string.Empty;
-    
+
     [Column("lastname")]
     public string LastName { get; set; } = string.Empty;
-    
+
     [Column("suffix")]
     public string? Suffix { get; set; }
-    
+
     [Column("email")]
     public string Email { get; set; } = string.Empty;
-    
-    [Column("passwordhash")] // Matches 'PasswordHash' from your script
+
+    [Column("passwordhash")]
     public string PasswordHash { get; set; } = string.Empty;
-    
-    [Column("birthdate")] // Matches 'BirthDate' from your script
+
+    [Column("birthdate")]
     public DateTime BirthDate { get; set; }
-    
+
     [Column("organization")]
     public string Organization { get; set; } = string.Empty;
-    
+
     [Column("usertype")]
     public string UserType { get; set; } = "Student";
-    
+
     [Column("createdat")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Add these to your existing User class
     [Column("is_verified")]
     public bool IsVerified { get; set; } = false;
 
@@ -44,4 +43,8 @@ public class User
 
     [Column("code_expires_at")]
     public DateTime? CodeExpiresAt { get; set; }
+
+    // --- NEW: stores the user's declared research interest topic ---
+    [Column("research_interest")]
+    public string? ResearchInterest { get; set; }
 }

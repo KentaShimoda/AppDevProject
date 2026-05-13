@@ -12,24 +12,50 @@ public class ResearchService : IResearchService
         _adminService = adminService;
     }
 
+    // ── Mapping ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Public static version so UserController.GetRecommended can call it
+    /// without needing to inject ResearchService directly.
+    /// </summary>
+    public static ResearchResponseDto MapToDtoPublic(Research r) => MapToDto(r);
+
     private static ResearchResponseDto MapToDto(Research r)
     {
         var latest = r.History.OrderByDescending(h => h.Version).FirstOrDefault();
         return new ResearchResponseDto(
-            r.Id, r.Title, r.Tags, r.Coordinator, r.Researchers, 
+            r.Id, r.Title, r.Tags, r.Category,           // Category added
+            r.Coordinator, r.Researchers,
             r.Views, r.Validations, r.Status,
             latest?.Version ?? 1,
             latest?.VersionName ?? "Initial Submission",
             latest?.Feedback,
             r.CreatedAt,
             r.History.OrderByDescending(h => h.Version)
-                    .Select(h => new HistoryResponseDto(h.Version, h.VersionName ?? "", h.Feedback, h.UploadedAt))
-                    .ToList(),
+                     .Select(h => new HistoryResponseDto(h.Version, h.VersionName ?? "", h.Feedback, h.UploadedAt))
+                     .ToList(),
             r.ValidationLog.Select(v => new ValidationResponseDto(v.FacultyEmail)).ToList()
         );
     }
 
-    // 🚀 Speed: Uses AsNoTracking to reduce memory load
+    private ResearchResponseDto MapToResponse(Research r)
+    {
+        var latestHistory = r.History.OrderByDescending(h => h.Version).FirstOrDefault();
+        return new ResearchResponseDto(
+            r.Id, r.Title, r.Tags, r.Category,           // Category added
+            r.Coordinator, r.Researchers,
+            r.Views, r.Validations, r.Status,
+            r.History.Any() ? r.History.Max(h => h.Version) : 1,
+            latestHistory?.VersionName ?? "Initial",
+            latestHistory?.Feedback,
+            r.CreatedAt,
+            r.History.Select(h => new HistoryResponseDto(h.Version, h.VersionName ?? "", h.Feedback, h.UploadedAt)).ToList(),
+            r.ValidationLog.Select(v => new ValidationResponseDto(v.FacultyEmail)).ToList()
+        );
+    }
+
+    // ── Read ──────────────────────────────────────────────────────────────────
+
     public async Task<List<ResearchResponseDto>> GetAllAsync()
     {
         var list = await _context.ResearchStudies
@@ -42,38 +68,59 @@ public class ResearchService : IResearchService
 
     public async Task<ResearchResponseDto?> GetByIdAsync(long id)
     {
-        // 🚀 Protocol: Use Include to fetch related history and validations
         var r = await _context.ResearchStudies
             .AsNoTracking()
             .Include(r => r.History)
             .Include(r => r.ValidationLog)
             .FirstOrDefaultAsync(r => r.Id == id);
 
-        if (r == null) return null;
-
-        return MapToResponse(r);
+        return r == null ? null : MapToResponse(r);
     }
 
-    public async Task<Research?> GetRawByIdAsync(long id) => 
+    public async Task<Research?> GetRawByIdAsync(long id) =>
         await _context.ResearchStudies.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+
+    /// <summary>
+    /// Returns approved studies whose category matches (case-insensitive).
+    /// Used by GET api/research/category/{category} and the recommendation feed.
+    /// </summary>
+    public async Task<List<ResearchResponseDto>> GetByCategoryAsync(string category)
+    {
+        var normalised = category.Trim().ToLower();
+        var list = await _context.ResearchStudies
+            .AsNoTracking()
+            .Include(r => r.History)
+            .Include(r => r.ValidationLog)
+            .Where(r => r.Status == "Approved" &&
+                        r.Category != null &&
+                        r.Category.ToLower() == normalised)
+            .OrderByDescending(r => r.Views + r.Validations)
+            .ThenByDescending(r => r.CreatedAt)
+            .ToListAsync();
+
+        return list.Select(MapToDto).ToList();
+    }
+
+    // ── Write ─────────────────────────────────────────────────────────────────
 
     public async Task<ResearchResponseDto> CreateAsync(ResearchUploadDto dto, long userId)
     {
         using var ms = new MemoryStream();
         await dto.PdfFile.CopyToAsync(ms);
 
-        var names = dto.ResearcherNames.Split(", ", StringSplitOptions.RemoveEmptyEntries);
+        var names  = dto.ResearcherNames.Split(", ",  StringSplitOptions.RemoveEmptyEntries);
         var emails = dto.ResearcherEmails.Split(", ", StringSplitOptions.RemoveEmptyEntries);
         var resList = names.Select((n, i) => new { name = n, email = emails.Length > i ? emails[i] : "" }).ToList();
 
         var research = new Research {
-            Title = dto.Title,
-            Tags = dto.Tags,
-            Coordinator = JsonSerializer.Serialize(new { name = dto.CoordinatorName, email = dto.CoordinatorEmail }),
-            Researchers = JsonSerializer.Serialize(resList),
-            PdfData = ms.ToArray(),
-            ContentType = dto.PdfFile.ContentType,
-            Status = "Pending Review"
+            Title      = dto.Title,
+            Tags       = dto.Tags,
+            Category   = dto.Category?.Trim(),            // NEW
+            Coordinator  = JsonSerializer.Serialize(new { name = dto.CoordinatorName, email = dto.CoordinatorEmail }),
+            Researchers  = JsonSerializer.Serialize(resList),
+            PdfData      = ms.ToArray(),
+            ContentType  = dto.PdfFile.ContentType,
+            Status       = "Pending Review"
         };
 
         _context.ResearchStudies.Add(research);
@@ -91,20 +138,16 @@ public class ResearchService : IResearchService
         var r = await _context.ResearchStudies.FindAsync(id);
         if (r == null) return false;
 
-        // 1. Update Basic Info
-        r.Title = dto.Title;
-        r.Tags = dto.Tags;
+        r.Title    = dto.Title;
+        r.Tags     = dto.Tags;
+        r.Category = dto.Category?.Trim();                // NEW
 
-        // 2. Process Researchers (Splitting strings back into JSON)[cite: 2]
-        var names = dto.ResearcherNames.Split(", ", StringSplitOptions.RemoveEmptyEntries);
+        var names  = dto.ResearcherNames.Split(", ",  StringSplitOptions.RemoveEmptyEntries);
         var emails = dto.ResearcherEmails.Split(", ", StringSplitOptions.RemoveEmptyEntries);
         var resList = names.Select((n, i) => new { name = n, email = emails.Length > i ? emails[i] : "" }).ToList();
         r.Researchers = JsonSerializer.Serialize(resList);
-
-        // 3. Update Coordinator[cite: 2]
         r.Coordinator = JsonSerializer.Serialize(new { name = dto.CoordinatorName, email = dto.CoordinatorEmail });
-
-        r.UpdatedAt = DateTime.UtcNow;
+        r.UpdatedAt   = DateTime.UtcNow;
 
         var success = await _context.SaveChangesAsync() > 0;
         if (success) FireAndForgetLog(userId, "RESEARCH_EDIT", $"Updated metadata for Study: {id}");
@@ -113,7 +156,6 @@ public class ResearchService : IResearchService
 
     public async Task<ResearchResponseDto?> UploadVersionAsync(long id, NewVersionDto dto, long userId)
     {
-        // 1. Fetch the research with its relational history
         var research = await _context.ResearchStudies
             .Include(r => r.History)
             .Include(r => r.ValidationLog)
@@ -121,30 +163,22 @@ public class ResearchService : IResearchService
 
         if (research == null) return null;
 
-        // 2. Determine the next version number based on the history table
         int nextVersion = (research.History.Max(h => (int?)h.Version) ?? 0) + 1;
 
         using var ms = new MemoryStream();
         await dto.PdfFile.CopyToAsync(ms);
 
-        // 3. Create the new history entry[cite: 34]
-        var newHistory = new ResearchHistory 
-        { 
-            ResearchId = id,
-            Version = nextVersion,
+        _context.ResearchHistory.Add(new ResearchHistory {
+            ResearchId  = id,
+            Version     = nextVersion,
             VersionName = dto.VersionName,
-            UploadedAt = DateTime.UtcNow
-        };
+            UploadedAt  = DateTime.UtcNow
+        });
 
-        // 4. Update the main research record with new PDF data[cite: 34]
-        research.PdfData = ms.ToArray();
+        research.PdfData   = ms.ToArray();
         research.UpdatedAt = DateTime.UtcNow;
-        
-        _context.ResearchHistory.Add(newHistory);
-        await _context.SaveChangesAsync();
 
-        // 5. CRITICAL FIX: Return the full ResearchResponseDto to match the interface
-        // We re-map the research object which now contains the updated history[cite: 34]
+        await _context.SaveChangesAsync();
         return MapToResponse(research);
     }
 
@@ -164,15 +198,13 @@ public class ResearchService : IResearchService
 
     public async Task<bool> UpdateFeedbackAsync(long id, int version, string feedback, long userId)
     {
-        // 🚀 Protocol: Directly update the ResearchHistory table
-        var historyEntry = await _context.ResearchHistory
+        var entry = await _context.ResearchHistory
             .FirstOrDefaultAsync(h => h.ResearchId == id && h.Version == version);
 
-        if (historyEntry == null) return false;
+        if (entry == null) return false;
 
-        historyEntry.Feedback = feedback;
-        _context.ResearchHistory.Update(historyEntry);
-        
+        entry.Feedback = feedback;
+        _context.ResearchHistory.Update(entry);
         return await _context.SaveChangesAsync() > 0;
     }
 
@@ -186,7 +218,6 @@ public class ResearchService : IResearchService
 
     public async Task<bool> ToggleValidationAsync(long id, string facultyEmail, long userId)
     {
-        // 🚀 Protocol: Check for existing validation record
         var existing = await _context.ResearchValidations
             .FirstOrDefaultAsync(v => v.ResearchId == id && v.FacultyEmail == facultyEmail);
 
@@ -200,45 +231,20 @@ public class ResearchService : IResearchService
         }
         else
         {
-            _context.ResearchValidations.Add(new ResearchValidation 
-            { 
-                ResearchId = id, 
-                FacultyEmail = facultyEmail 
-            });
+            _context.ResearchValidations.Add(new ResearchValidation { ResearchId = id, FacultyEmail = facultyEmail });
             research.Validations += 1;
         }
 
         return await _context.SaveChangesAsync() > 0;
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     private void FireAndForgetLog(long userId, string action, string details)
     {
         _ = Task.Run(async () => {
-            try { await _adminService.LogActionAsync(userId, action, details); }
-            catch { /* Log fails won't break the main action */ }
+            try   { await _adminService.LogActionAsync(userId, action, details); }
+            catch { /* Log failures must never break the main action */ }
         });
-    }
-
-    private ResearchResponseDto MapToResponse(Research r)
-    {
-        // 🚀 Logic: Extract the latest iteration data from the History list[cite: 34]
-        var latestHistory = r.History.OrderByDescending(h => h.Version).FirstOrDefault();
-
-        return new ResearchResponseDto(
-            r.Id, 
-            r.Title, 
-            r.Tags, 
-            r.Coordinator, 
-            r.Researchers, 
-            r.Views, 
-            r.Validations, 
-            r.Status, 
-            r.History.Any() ? r.History.Max(h => h.Version) : 1, // Current Version Number
-            latestHistory?.VersionName ?? "Initial",            // Current Version Name
-            latestHistory?.Feedback,                            // Latest Remarks
-            r.CreatedAt,
-            r.History.Select(h => new HistoryResponseDto(h.Version, h.VersionName ?? "", h.Feedback, h.UploadedAt)).ToList(),
-            r.ValidationLog.Select(v => new ValidationResponseDto(v.FacultyEmail)).ToList()
-        );
     }
 }

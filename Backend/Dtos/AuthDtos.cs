@@ -6,7 +6,8 @@ public record RegisterDto(
     string Password, 
     DateTime BirthDate, 
     string Organization, 
-    string UserType
+    string UserType,
+    string? ResearchInterest  
 );
 
 public record LoginDto(string Email, string Password);
@@ -36,6 +37,9 @@ public class UpdateRoleDto
     public string NewRole { get; set; } = string.Empty;
 }
 
+public record SetInterestDto(string ResearchInterest);
+ 
+public record UserInterestResponseDto(long Id, string ResearchInterest);
 public record ResendCodeDto(string Email);
 public record VerifyEmailDto(string Email, string Code);
 public record ForgotPasswordDto(string Email);
