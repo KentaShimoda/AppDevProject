@@ -12,14 +12,13 @@ const ForgotPassword: React.FC = () => {
     setIsLoading(true);
     
     try {
-      // 🚀 Protocol: Request recovery key from the identity service[cite: 32, 36]
+      // 🚀 Protocol: Request recovery key from the identity service
+      // Error Fix: success is now a boolean because the service returns Promise<true>
       const success = await authService.forgotPassword(email);
       
       if (success) {
-        // Redirect to reset terminal and preserve email in the navigation state[cite: 41]
+        // Redirect to reset terminal and preserve email in navigation state
         navigate("/reset-password", { state: { email } });
-      } else {
-        throw new Error("Archive failed to issue recovery key.");
       }
     } catch (err: any) {
       alert(err.message || "Failed to initialize recovery protocol. Please try again.");

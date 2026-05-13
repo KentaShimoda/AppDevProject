@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { researchService } from "../../services/researchService";
+import { bookmarkService } from "../../services/bookmarkService";
+import { API_BASE_URL } from "../../services/apiConfig";
 import { Document, Page, pdfjs } from 'react-pdf';
 
 // PDF Worker Initialization
@@ -9,10 +11,15 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
+// --- Local Types ---
+interface Researcher { name: string; email: string; }
+interface Coordinator { name: string; email: string; }
+
 const Preview: React.FC = () => {
   const { id } = useParams<{ id: string }>(); 
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const token = localStorage.getItem("token");
 
   // --- 1. State Management ---
   const [study, setStudy] = useState<any>(null);
@@ -20,9 +27,11 @@ const Preview: React.FC = () => {
   const [activeCitation, setActiveCitation] = useState("APA");
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [hasValidated, setHasValidated] = useState(false); 
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isVersionOpen, setIsVersionOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [feedbackEdit, setFeedbackEdit] = useState<{version: number, text: string} | null>(null);
   
   const [editForm, setEditForm] = useState({ 
@@ -48,21 +57,31 @@ const Preview: React.FC = () => {
 
   const fetchStudy = useCallback(() => {
     if (!id) return;
-    researchService.getById(Number(id)).then(data => {
+    
+    Promise.all([
+      researchService.getById(Number(id)),
+      bookmarkService.getMyList()
+    ]).then(([data, bookmarks]) => {
       if (!data) { setLoading(false); return; }
       setStudy(data);
       
-      // 🚀 RESTORED: Auto-select active version so log is visible
+      // Check bookmark status against user's saved list
+      const saved = (bookmarks || []).some((b: any) => (b.researchId || b.id) === Number(id));
+      setIsBookmarked(!!saved);
+
       if (selectedVersion === null) {
-        setSelectedVersion(data.version || data.Version);
+        // Fix for Error 1 (line 68): Explicitly cast unknown properties to number
+        const currentV = (data.version ?? data.Version) as number | undefined;
+        setSelectedVersion(currentV ?? null);
       }
       
       const coord = safeParse(data.coordinator || data.Coordinator, {});
       const resList = safeParse(data.researchers || data.Researchers, []);
 
       setEditForm({ 
-        title: data.title || data.Title || "", 
-        tags: data.tags || data.Tags || "",
+        title: data.title || (data.Title as string) || "", 
+        // Fix for Error 2 (line 80): Ensure tags are formatted as a string
+        tags: Array.isArray(data.tags) ? data.tags.join(", ") : (typeof data.tags === 'string' ? data.tags : ""),
         coordinatorName: coord?.name || coord?.Name || "", 
         coordinatorEmail: coord?.email || coord?.Email || "",
         researchers: resList.map((r: any) => ({ 
@@ -97,7 +116,40 @@ const Preview: React.FC = () => {
     }
   }, [id, fetchStudy]);
 
+  const pdfAuthFile = useMemo(() => {
+    return {
+      url: researchService.getViewUrl(Number(id!)),
+      httpHeaders: token ? { Authorization: `Bearer ${token}` } : {}
+    };
+  }, [id, token]);
+
   // --- 3. Handlers ---
+
+  const handleToggleBookmark = async () => {
+    try {
+      const result = await bookmarkService.toggle(Number(id));
+      setIsBookmarked(result.isBookmarked);
+    } catch (err) {
+      console.error("Bookmark toggle failed", err);
+    }
+  };
+
+  const handleDeleteManuscript = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/Research/${id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      
+      if (res.ok) {
+        navigate("/Dashboard");
+      } else {
+        throw new Error();
+      }
+    } catch (err) {
+      alert("Unauthorized: Manuscript removal restricted to coordinating authority.");
+    }
+  };
 
   const addResearcher = () => {
     setEditForm({ ...editForm, researchers: [...editForm.researchers, { name: "", email: "" }] });
@@ -117,11 +169,9 @@ const Preview: React.FC = () => {
     e.preventDefault();
     const submissionData = {
         title: editForm.title,
-        tags: editForm.tags,
+        tags: editForm.tags.split(",").map((t: string) => t.trim()).filter(Boolean),
         coordinatorName: editForm.coordinatorName,
         coordinatorEmail: editForm.coordinatorEmail,
-        researcherNames: editForm.researchers.map(r => r.name).join(", "),
-        researcherEmails: editForm.researchers.map(r => r.email).join(", ")
     };
     const success = await researchService.updateDetails(Number(id), submissionData);
     if (success) { setIsEditOpen(false); fetchStudy(); }
@@ -130,10 +180,10 @@ const Preview: React.FC = () => {
   const handleUploadVersion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!versionForm.file || !versionForm.name) return alert("Select a PDF and version name.");
-    const data = new FormData();
-    data.append("VersionName", versionForm.name);
-    data.append("PdfFile", versionForm.file);
-    const result = await researchService.uploadNewVersion(Number(id), data);
+    const result = await researchService.uploadNewVersion(Number(id), {
+      file: versionForm.file,
+      notes: versionForm.name
+    });
     if (result) { setIsVersionOpen(false); setVersionForm({ name: "", file: null }); fetchStudy(); }
   };
 
@@ -143,7 +193,27 @@ const Preview: React.FC = () => {
     if (success) { 
       setFeedbackEdit(null); 
       fetchStudy(); 
-      alert("Coordinator Log Entry Updated Successfully."); // Confirm status[cite: 22]
+      alert("Coordinator Log Entry Updated Successfully."); 
+    }
+  };
+
+  const handleSecureDownload = async () => {
+    try {
+      const res = await fetch(researchService.getViewUrl(Number(id)), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${study.title || "Manuscript"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Download failed. The file may be restricted or unavailable.");
     }
   };
 
@@ -183,14 +253,28 @@ const Preview: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <button 
+            onClick={handleToggleBookmark} 
+            className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-all ${isBookmarked ? 'bg-primary-orange text-white border-primary-orange shadow-lg' : 'bg-white/10 text-white border-white/5 hover:bg-white/20'}`}
+            title={isBookmarked ? "Remove from Library" : "Bookmark Manuscript"}
+          >
+            <i className={`${isBookmarked ? 'fa-solid' : 'fa-regular'} fa-bookmark text-base`}></i>
+          </button>
+
           {isOwner && (
-            <div className="flex items-center gap-3">
-              <button onClick={() => setIsEditOpen(true)} className="bg-white/10 hover:bg-white text-white hover:text-charcoal-black px-5 py-2.5 rounded-xl text-[10px] font-black uppercase">Edit</button>
-              <button onClick={() => setIsVersionOpen(true)} className="bg-white/10 hover:bg-white text-white hover:text-charcoal-black px-5 py-2.5 rounded-xl text-[10px] font-black uppercase">Upload Version</button>
-            </div>
+            <>
+              <div className="h-8 w-px bg-white/10 mx-2"></div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setIsEditOpen(true)} className="bg-white/10 hover:bg-white text-white hover:text-charcoal-black px-5 py-2.5 rounded-xl text-[10px] font-black uppercase">Edit</button>
+                <button onClick={() => setIsVersionOpen(true)} className="bg-white/10 hover:bg-white text-white hover:text-charcoal-black px-5 py-2.5 rounded-xl text-[10px] font-black uppercase">Upload Version</button>
+                <button onClick={() => setIsDeleteOpen(true)} className="bg-verified-red/20 hover:bg-verified-red text-verified-red hover:text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all">Delete</button>
+              </div>
+            </>
           )}
           <div className="h-10 w-px bg-white/10 mx-2"></div>
-          <button onClick={() => window.location.href=researchService.getViewUrl(Number(id))} className="bg-primary-orange hover:bg-white text-white hover:text-charcoal-black px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all">Download PDF</button>
+          <button onClick={handleSecureDownload} className="bg-primary-orange hover:bg-white text-white hover:text-charcoal-black px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all">
+            Download PDF
+          </button>
         </div>
       </header>
 
@@ -214,7 +298,7 @@ const Preview: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-auto bg-white flex justify-center p-12 scrollbar-hide">
-              <Document file={researchService.getViewUrl(Number(id))} onLoadSuccess={({numPages}) => setNumPages(numPages)}>
+              <Document file={pdfAuthFile} onLoadSuccess={({numPages}) => setNumPages(numPages)}>
                 <Page pageNumber={pageNumber} scale={scale} renderTextLayer={false} renderAnnotationLayer={false} width={800} />
               </Document>
             </div>
@@ -226,14 +310,32 @@ const Preview: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-12 space-y-16 scrollbar-hide">
             
             <section>
+              {study.status === "Revision Requested" && isOwner && (
+                <div className="bg-verified-red/10 border border-verified-red/30 text-verified-red p-6 rounded-3xl mb-10 flex flex-col gap-4 shadow-sm">
+                  <div>
+                    <h4 className="font-black uppercase tracking-widest text-[10px] mb-2 flex items-center gap-2"><i className="fa-solid fa-triangle-exclamation"></i> Action Required</h4>
+                    <p className="text-xs font-bold leading-relaxed text-charcoal-black">Your coordinator has requested a revision. Review the feedback in the timeline below.</p>
+                  </div>
+                  <button onClick={() => setIsVersionOpen(true)} className="bg-verified-red text-white w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md hover:bg-red-700 transition-all">Upload Revision Now</button>
+                </div>
+              )}
+
               <div className="flex items-center justify-between mb-10">
-                <span className="badge-verified bg-red-500/10 text-verified-red px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/20">{study.status}</span>
+                <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                  study.status === 'Approved' ? 'bg-green-50 text-green-600 border-green-100' :
+                  study.status === 'Revision Requested' ? 'bg-red-50 text-verified-red border-red-100' :
+                  'bg-orange-50 text-primary-orange border-orange-100'
+                }`}>
+                  {study.status}
+                </span>
+                
                 {isFaculty && !isCoordinator && (
                   <button onClick={() => researchService.toggleValidation(Number(id)).then(fetchStudy)} className={`text-[10px] font-black uppercase px-6 py-2.5 rounded-2xl border-2 transition-all ${hasValidated ? 'bg-charcoal-black text-white' : 'text-charcoal-black hover:bg-orange-50'}`}>
                     {hasValidated ? "Remove Points" : "Validate Study"}
                   </button>
                 )}
               </div>
+
               <h2 className="text-4xl font-black uppercase tracking-tight leading-[0.9] mb-8 text-charcoal-black">{study.title}</h2>
               <div className="grid grid-cols-2 gap-px bg-orange-100 border border-orange-100 rounded-[2.5rem] overflow-hidden text-[10px] font-black uppercase mb-10">
                 <div className="p-8 bg-white"><span className="text-meta-label block mb-1">Created</span><p>{new Date(study.createdAt).toLocaleDateString()}</p></div>
@@ -242,7 +344,7 @@ const Preview: React.FC = () => {
                 <div className="p-8 bg-white"><span className="text-meta-label block mb-1">Iteration</span><p>v{study.version || study.Version}.0</p></div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {study.tags?.split(',').map((tag: string, i: number) => (
+                {(study.tags || "").split(',').map((tag: string, i: number) => (
                   <span key={i} className="bg-orange-50 text-primary-orange text-[10px] font-black px-4 py-2 rounded-xl border border-orange-100 uppercase">{tag.trim()}</span>
                 ))}
               </div>
@@ -255,7 +357,7 @@ const Preview: React.FC = () => {
                 <div>
                   <p className="text-[11px] font-black uppercase text-charcoal-black tracking-wider">{coordinatorData?.name || "Unassigned"}</p>
                   <p className="text-[9px] font-medium text-slate-400 lowercase">{coordinatorData?.email || "No email"}</p>
-                  <p className="text-[9px] font-black uppercase text-primary-orange bg-orange-50 px-2 py-1 rounded-md inline-block">Lead Coordinator</p>
+                  <p className="text-[9px] font-black uppercase text-primary-orange bg-orange-50 px-2 py-1 rounded-md inline-block mt-1">Lead Coordinator</p>
                 </div>
               </div>
             </section>
@@ -275,7 +377,6 @@ const Preview: React.FC = () => {
               </div>
             </section>
 
-            {/* TIMELINE: FIXED FOR LOG EDITING[cite: 22] */}
             <section className="space-y-8">
               <h3 className="text-meta-label text-charcoal-black text-[11px] uppercase tracking-[0.4em]">Manuscript Timeline</h3>
               <div className="relative pl-8 border-l-2 border-orange-100 space-y-12 ml-2">
@@ -350,8 +451,8 @@ const Preview: React.FC = () => {
               <section>
                 <div className="flex justify-between items-center mb-8"><div className="flex items-center gap-6 flex-1"><h2 className="text-h2 text-[12px] tracking-widest uppercase">04. Research Team</h2><div className="flex-1 h-px bg-orange-100"></div></div><button type="button" onClick={addResearcher} className="btn-terminal-secondary py-2 px-6 ml-6">Add Member</button></div>
                 <div className="space-y-6 max-h-[300px] overflow-y-auto pr-4 scrollbar-hide">
-                  {editForm.researchers.map((res, index) => {
-                    const isSelf = res.email.toLowerCase() === currentUser.email.toLowerCase();
+                  {editForm.researchers.map((res: any, index: number) => {
+                    const isSelf = (res.email || "").toLowerCase() === (currentUser.email || "").toLowerCase();
                     return (
                       <div key={index} className={`grid grid-cols-1 md:grid-cols-[1fr_1fr_60px] gap-6 items-center p-6 rounded-[2.5rem] border ${isSelf ? 'bg-ember-soft border-primary-orange/30' : 'bg-white border-orange-100'}`}>
                         <input required readOnly={isSelf} value={res.name} onChange={(e) => handleResearcherChange(index, 'name', e.target.value)} className={`w-full rounded-xl px-6 py-4 outline-none ${isSelf ? 'bg-white/50 text-slate-400' : 'bg-warm-white focus:border-primary-orange'}`} />
@@ -394,6 +495,23 @@ const Preview: React.FC = () => {
             <div className="flex gap-6 pt-6">
               <button onClick={() => setFeedbackEdit(null)} className="flex-1 font-black text-xs text-slate-400 uppercase hover:text-verified-red">Cancel</button>
               <button onClick={handleSaveFeedback} className="btn-terminal-primary flex-1 py-5">Update Log</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Delete Confirmation Modal */}
+      {isDeleteOpen && (
+        <div className="fixed inset-0 z-[300] bg-charcoal-black/80 backdrop-blur-lg flex items-center justify-center p-12">
+          <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl w-full max-w-md border-t-8 border-verified-red text-center">
+            <div className="w-20 h-20 bg-verified-red/10 rounded-full flex items-center justify-center mx-auto mb-8">
+              <i className="fa-solid fa-trash-can text-3xl text-verified-red"></i>
+            </div>
+            <h2 className="text-3xl font-black uppercase mb-4 text-charcoal-black tracking-tight leading-none">Terminate Record?</h2>
+            <p className="text-sm font-bold text-slate-400 leading-relaxed mb-10">This action is irreversible. The manuscript and all associated iteration history will be purged from the archive.</p>
+            <div className="flex gap-6">
+              <button onClick={() => setIsDeleteOpen(false)} className="flex-1 py-5 rounded-2xl bg-slate-100 text-charcoal-black font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
+              <button onClick={handleDeleteManuscript} className="flex-1 py-5 rounded-2xl bg-verified-red text-white font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-red-700 transition-all">Terminate</button>
             </div>
           </div>
         </div>
