@@ -328,7 +328,7 @@ const Dashboard: React.FC = () => {
     ])
       .then(([data, bookmarks, interestResult]) => {
         const approved: Study[] = Array.isArray(data)
-          ? data.filter((s: any) => s.status === "Approved")
+          ? (data as any[]).filter((s: any) => s.status === "Approved") as Study[]
           : [];
         setStudies(approved);
         const savedSet = new Set<number>(bookmarks.map((b: any) => b.researchId || b.id));
